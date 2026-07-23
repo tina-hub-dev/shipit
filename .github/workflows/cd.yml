@@ -29,3 +29,36 @@
         env:
           RG: ${{ vars.RG }}
           ACR: ${{ vars.ACR }} 
+
+      - name: Health check
+        id: health
+        continue-on-error: true
+        run: |
+          FQDN=$(az containerapp show -n shipit-production -g "$RG" \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          # Container Apps sets the new revision's traffic weight to 100 in config
+          # almost immediately, but the *actual* data-plane traffic shift lags by up to
+          # a minute or two. If we polled once and exited on the first 200, we could hit
+          # the OLD (healthy) revision and wave a broken new deploy straight through.
+          # So: let traffic settle, then require /readyz to be healthy for several
+          # CONSECUTIVE checks. A bad revision returns 503 once it starts serving, which
+          # resets the streak and fails the job -> triggering rollback.
+          sleep 30
+          ok=0
+          for i in $(seq 1 18); do
+            if curl -fsS "https://$FQDN/readyz" >/dev/null 2>&1; then
+              ok=$((ok+1))
+            else
+              ok=0
+            fi
+            if [ "$ok" -ge 5 ]; then echo "sustained ready"; exit 0; fi
+            sleep 5
+          done
+          echo "never became reliably ready"; exit 1
+      - name: Roll back on failure
+        if: steps.health.outcome == 'failure'
+        run: |
+          echo "::error::Deploy failed readiness. Rolling back to ${{ steps.current.outputs.prev }}"
+          az containerapp update -n shipit-production -g "$RG" \
+            --image "${{ steps.current.outputs.prev }}"
+          exit 1 
