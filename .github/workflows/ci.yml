@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -54,28 +50,3 @@ jobs:
         with:
           name: test-results
           path: "**/test-results.trx"
-
-      - name: Log in to Azure (OIDC, no stored password)
-        if: github.event_name == 'push'
-        uses: azure/login@v3
-        with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Build and push the image
-        if: github.event_name == 'push'
-        run: |
-          az acr login --name ${{ vars.ACR }}
-          IMAGE=${{ vars.ACR }}.azurecr.io/shipit:${{ github.sha }}
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-
-      - name: Scan the image
-        if: github.event_name == 'push'
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ vars.ACR }}.azurecr.io/shipit:${{ github.sha }}
-          format: table
-          severity: HIGH,CRITICAL
-          exit-code: "0"

@@ -1,8 +1,0 @@
-services:
-  shipit:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      SHIPIT_REGION: "local-dev"
-      SHIPIT_BANNER_COLOR: "green"
