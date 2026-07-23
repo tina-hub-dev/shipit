@@ -1,15 +1,15 @@
-name: CD
-on:
+ name: CD
+ on:
   workflow_run:
     workflows: ["CI"]        # your CI workflow (built in Module 2, pushes SHA-tagged images since Module 3)
     types: [completed]
     branches: [main]
 
-permissions:
+ permissions:
   id-token: write            # required to request an OIDC token
   contents: read
 
-jobs:
+ jobs:
   deploy-staging:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
@@ -28,7 +28,7 @@ jobs:
             --image "$ACR.azurecr.io/shipit:$SHA"
         env:
           RG: ${{ vars.RG }}
-          ACR: ${{ vars.ACR }}
+          ACR: ${{ vars.ACR }} 
 
     deploy-production:
     needs: deploy-staging
@@ -54,8 +54,8 @@ jobs:
         run: |
           az containerapp update -n shipit-production -g "$RG" \
             --image "$ACR.azurecr.io/shipit:$SHA"    
-
-           - name: Health check
+          
+      - name: Health check
         id: health
         continue-on-error: true
         run: |
@@ -86,4 +86,4 @@ jobs:
           echo "::error::Deploy failed readiness. Rolling back to ${{ steps.current.outputs.prev }}"
           az containerapp update -n shipit-production -g "$RG" \
             --image "${{ steps.current.outputs.prev }}"
-          exit 1   
+          exit 1
